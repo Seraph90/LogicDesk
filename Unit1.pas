@@ -9,8 +9,10 @@ uses
 
 type
 	TForm1 = class(TForm)
+
 		// Рабочее поле
 		I_Table: TImage;
+
 		// Поле выбора
 		I_El: TImage;
 		procedure FormCreate(Sender: TObject);
@@ -20,13 +22,17 @@ type
 
 		// Прорисовка провода
 		procedure RedrawWire;
+
 		// Проверка питания и вызов проверки логики
 		procedure Test;
+
 		// Расчёт логики
 		function TestLink(FPin: TPin): Boolean;
+
 		// Перерисовка поля
 		procedure Redraw;
-		// ВЫбор элемента в поле выбора
+
+		// Выбор элемента в поле выбора
 		procedure Turn(Sender: TObject);
 	private
 	public
@@ -34,6 +40,9 @@ type
 
 const
 	panelCol = 6;
+  elCount = 6;
+  batType = 1;
+  sendLampType = 3;
 
 var
 	Form1: TForm1;
@@ -57,24 +66,24 @@ var
 	res: Boolean;
 begin
 	TestLink := False;
-	if FPin.Link[1] = nil
-	then
+  //res := False;
+	if (FPin.Link[1] = nil) then
 		case FPin.PCont.CType
 		of
 			// Элементы у которых нет логики
-			1..3: Exit;
-
+			1..4: Exit;
 			// Элементы у которых на свободных контактах логическая 1
-			4..4: begin
+			5..5: begin
 							TestLink := True;
 							FPin.State := True;
 						end;
 
 			// Элементы у которых на свободных контактах логический 0
-			5..6: begin
+			6..7: begin
 							TestLink := False;
 							FPin.State := False;
 						end;
+      {<}
 		end
 	else
 		begin
@@ -82,7 +91,7 @@ begin
 			if FPin.Link[1].Rec
 			then
 				begin
-					TestLink:=FPin.Link[1].State;
+					TestLink := FPin.Link[1].State;
 					Exit;
 				end
 			else
@@ -91,32 +100,29 @@ begin
 				end;
 
 			// Описание логики
-			case FPin.Link[1].PCont.CType
-			of
-				2: res := FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ElOut.State;
-				4: res := not(TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[1]) and TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[2]));
-				{>
-				5:result:=not(TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[1])
-										and TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[2])
-										and TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[3])
-										and TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[4]));
-				{<}
-				5: res := not(TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[1]) or TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[2]));
-				{
-				6:result:=TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[1])
-				 xor TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[2])
-				 xor TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[3])
-				 xor TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[4]);
-				{>
-				7:result:=(TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[1])
-										xor TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[2]));
-				{>		 }
-				7: res := not(TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[1])
-										or TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[2])
-										or TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[3])
-										or TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[4]));
-				{<}
-			end;
+			case (FPin.Link[1].PCont.CType) of
+
+        // Лампочка
+				3: res := FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ElOut.State;
+
+        // not And
+				5: res := not(
+                    TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[1]) and
+                    TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[2])
+                  );
+
+        // not Or
+				6: res := not(
+                    TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[1]) or
+                    TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[2])
+                  );
+
+        // Xor
+				7: res := TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[1]) xor
+                  TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[2]) xor
+                  TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[3]) xor
+                  TestLink(FPin.Link[1].PCont.CEl[FPin.Link[1].PEl].ELIn[4]);
+ 			end;
 
 			TestLink := res;
 			FPin.State := res;
@@ -135,14 +141,14 @@ begin
 	while (i <= 6) do
 		begin
 			j := 2;
-			while j <= 7 do
+			while (j <= 7) do
 				begin
 					if (Field[i, j] <> nil) then
 						begin
 							Field[i, j].OnLine :=
-								 ((Field[i, j-1]<>nil) and ((Field[i, j].Bus and 8)>0) and ((Field[i, j-1].Bus and 1)>0) and (Field[i, j-1].OnLine))
-							or ((Field[i-1, j]<>nil) and ((Field[i, j].Bus and 4)>0) and ((Field[i-1, j].Bus and 2)>0) and (Field[i-1, j].OnLine));
-							if ((Field[i, j].OnLine) and (Field[i, j].CType=3)) then
+								 ((Field[i, j - 1] <> nil) and ((Field[i, j].Bus and 8) > 0) and ((Field[i, j - 1].Bus and 1) > 0) and (Field[i, j - 1].OnLine))
+							or ((Field[i - 1, j] <> nil) and ((Field[i, j].Bus and 4) > 0) and ((Field[i - 1, j].Bus and 2) > 0) and (Field[i - 1, j].OnLine));
+							if ((Field[i, j].OnLine) and (Field[i, j].CType = sendLampType + 1)) then
 								begin
 									Inc(k);
 									ta[k] := Field[i, j];
@@ -152,7 +158,6 @@ begin
 				end;
 			Inc(i);
 		end;
-
 	for i := 1 to 6 do
 		for j := 2 to 7 do
 			if Field[i, j] <> nil then
@@ -208,12 +213,12 @@ begin
 			end;
 end;
 
-// ВЫбор элемента в поле выбора
+// Выбор элемента в поле выбора
 procedure TForm1.Turn(Sender: TObject);
 var
 	i: Integer;
 begin
-	for i := 1 to 7 do
+	for i := 1 to elCount do
 		begin
 			if (Field[0, i] = Sender) then
 				begin
@@ -229,7 +234,7 @@ begin
 						6:    Cur := 7;
 					end;
 					{<}
-				end 
+				end
 			else
 				Field[0, i].Redraw(clWhite, False);
 		end;
@@ -242,33 +247,31 @@ begin
 	// Очистка поля
 	for i := 1 to 6 do
 		for j := 1 to 7 do
-			Field[i, j] := nil;
-
+      begin
+  			Field[i, j] := nil;
+      end;
 	// Создание элементов на поле
 	Field[1, 1] := TCont.Create(I_Table, 0, 0, 1, True);
 	Field[1, 1].OnLine := True;
-	Field[1, 2] := TCont.Create(I_Table, 0, 1, 2, True);
+	Field[1, 2] := TCont.Create(I_Table, 0, 1, 3, True);
 	Field[1, 2].OnLine := True;
-	Field[2, 2] := TCont.Create(I_Table, 1, 1, 3, True);
+	Field[2, 2] := TCont.Create(I_Table, 1, 1, 5, True);
 	Field[2, 2].OnLine := True;
-//	Field[2, 2]:=TCont.Create(I_Table, 1, 1, 7, True);
-	//Field[2, 2] := TCont.Create(I_Table, 1, 1, 5, True);
-	//Field[3, 2] := TCont.Create(I_Table, 2, 1, 3, True);
+	Field[3, 2] := TCont.Create(I_Table, 2, 1, 4, True);
 
 	// Отрисовка элементов на поле выбора
 	Field[0, 1] := TCont.Create(I_El, 0, 0, 2, False);
 	Field[0, 2] := TCont.Create(I_El, 0, 1, 3, False);
-	//Field[0, 3] := TCont.Create(I_El, 0, 2, 4, False);
-	//Field[0, 4] := TCont.Create(I_El, 0, 3, 5, False);
-	//Field[0, 5] := TCont.Create(I_El, 0, 4, 6, False);
-	//Field[0, 6] := TCont.Create(I_El, 0, 5, 7, False);
+	Field[0, 3] := TCont.Create(I_El, 0, 2, 4, False);
+	Field[0, 4] := TCont.Create(I_El, 0, 3, 5, False);
+	Field[0, 5] := TCont.Create(I_El, 0, 4, 6, False);
+	Field[0, 6] := TCont.Create(I_El, 0, 5, 7, False);
 	Field[0, 1].OnClick := Turn;
 	Field[0, 2].OnClick := Turn;
-	//Field[0, 3].OnClick := Turn;
-	//Field[0, 4].OnClick := Turn;
-	//Field[0, 5].OnClick := Turn;
-	//Field[0, 6].OnClick := Turn;
-
+	Field[0, 3].OnClick := Turn;
+	Field[0, 4].OnClick := Turn;
+	Field[0, 5].OnClick := Turn;
+	Field[0, 6].OnClick := Turn;
 	Cur:=0;
 	Redraw;
 end;
@@ -297,7 +300,9 @@ begin
 	for i := 1 to 6 do
 		for j := 1 to 7 do
 			if (Field[i, j] <> nil) then
-				Field[i, j].Destroy;
+        begin
+  				Field[i, j].Destroy;
+        end;
 end;
 
 end.

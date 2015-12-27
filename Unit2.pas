@@ -7,85 +7,76 @@ uses
 	Dialogs, ExtCtrls;
 
 const
-	// ?????? ????????
 	LampSize = 15;
-
-	// ?????? ????????
 	ElWidth = 10;
-
-	// ?????? ????????
 	ElHeight = Round(1.5 * ElWidth);
 
 type
 	TCont = class;
 
-	// ????? ?????????
 	TPin = class (TImage)
 	public
 
-		// ???????
+		// Contacts
 		Link: array[1..20] of TPin;
 
-		// ??? ???????? (????|?????)
+		// Pin type (in|out)
 		PType: Boolean;
 
-		// ?????????? ????????? ????????
+		// Logical contact state
 		State: Boolean;
 
-		// ???????????? ?? ???????? ?? ????????
+		// Recursion
 		Rec: Boolean;
 
-		// ????????? ?? ???????
+		// Pointer to element
 		PEl: Integer;
-		
-		// ????????? ?? ?????????????? ???????
+
+		// Pointer to container
 		PCont: TCont;
 
-		// ??????? ?? ???????
+		// Clock on pin
 		procedure PinOnClick(Sender: TObject);
 
-		constructor Create(AOwner: TComponent; x, y: Integer; FType: Boolean; FEl: Integer; FCont: TCont);
-		destructor Destroy;
+	 	constructor Create(AOwner: TComponent; x, y: Integer; FType: Boolean; FEl: Integer; FCont: TCont);
+	 	destructor Destroy;
 	end;
 
-	// ??? ????????.
-	// ElIn ?????? ???????? ?????????
-	// ElOut ????????? ???????
 	TEl = record
 		ElIn: array [1..4] of TPin;
 		ElOut: TPin;
 	end;
 
-	// ????? ??????????
 	TCont = class (TImage)
 	public
 
-		// ??? ??????????
+		// Container type
 		CType: Byte;
 
-		// ?????? ?????????
+		// Array of elements
 		CEl: array[1..4] of TEl;
 
 		CX, CY: Integer;
 
-		// ??????????? ????????? ????
+		// Bus direction
 		Bus: Byte;
 
-		// ????????? ??????????? ? ????
 		OnLine: Boolean;
 
 		procedure ContOnMouseUp(Sender: TObject; Button: TMouseButton;
 	Shift: TShiftState; X, Y: Integer);
 
+    procedure LampDraw(i: Integer; FClr: Cardinal; Pins, LType: Boolean);
+    procedure ContainerDraw(i, j, pinCount: Integer; FClr: Cardinal; Pins, Inverse: Boolean; Text: String);
 		procedure Redraw(FClr: Cardinal; Pins:Boolean);
 
 		constructor Create(AOwner: TComponent; x, y: Integer; FType: Byte; Pins: Boolean);
-		destructor Destroy;
+ 		destructor Destroy;
 	end;
 
 implementation
 
-uses Unit1;
+uses Unit1, Math;
 
 constructor TPin.Create(AOwner: TComponent; x, y: Integer; FType: Boolean; FEl: Integer; FCont: TCont);
 var
@@ -93,7 +84,7 @@ var
 begin
 	inherited Create(AOwner);
 
-	// ??????? ?????????
+	// Contacts clear
 	for i := 1 to 20 do
 		begin
 			Self.Link[i] := nil;
@@ -118,7 +109,7 @@ begin
 	inherited Destroy;
 end;
 
-// ??????? ?? ???????
+// Click on contact
 procedure TPin.PinOnClick(Sender: TObject);
 var
 	i, j: Integer;
@@ -216,7 +207,7 @@ end;
 procedure TCont.ContOnMouseUp(Sender: TObject; Button: TMouseButton;
 	Shift: TShiftState; X, Y: Integer);
 begin
-	if (((Owner as TImage) <> Form1.I_Table) or (CType = 1))  then
+	if (((Owner as TImage) <> Form1.I_Table) or (CType = batType)) then
 		Abort;
 	if ((ssShift in Shift) and (FstPin = nil)) then
 		begin
@@ -227,7 +218,7 @@ begin
 			Abort;
 		end
 	else
-		if (CType = 2) then
+		if (CType = sendLampType) then
 			begin
 				if (y < 50) then
 					begin
@@ -308,10 +299,125 @@ begin
 	inherited Destroy;
 end;
 
-// ?????????
-procedure TCont.Redraw(FClr: Cardinal; Pins:Boolean);
+procedure TCont.LampDraw(i: Integer; FClr: Cardinal; Pins, LType: Boolean);
+var
+  condition: Boolean;
+  x, direction: Integer;
+begin
+  if (LType) then
+    begin
+      x := 30;
+      direction := 1;
+    end
+  else
+    begin
+      x := 70;
+      direction := -1;
+    end;
+  with (Canvas) do
+    begin
+      if (Pins) then
+        begin
+          if (LType) then
+            begin
+              CEl[i + 1].ElOut := TPin.Create(Self, Left + x + 2 * LampSize, Top + 30 + i * 40, False, i + 1, Self);
+            end
+          else
+            begin
+    					CEl[i + 1].ElIn[1] := TPin.Create(Self, Left + x - 2 * LampSize, Top + 30 + i * 40, True, i + 1, Self);
+            end;
+        end;
+      Ellipse(x - LampSize, 30 + i * 40 - LampSize, x + LampSize, 30 + i * 40 + LampSize);
+      if (LType) then
+        begin
+          condition := ((CEl[i + 1].ElOut <> nil) and (CEl[i + 1].ElOut.State) and OnLine);
+        end
+      else
+        begin
+          condition := ((CEl[i + 1].ElIn[1] <> nil) and (CEl[i + 1].ElIn[1].State) and OnLine);
+        end;
+      if (condition) then
+        begin
+          Brush.Color := clLime;
+        end
+      else
+        begin
+          Brush.Color := clGreen;
+        end;
+      Ellipse(x - LampSize + 5, 30 + i * 40 - LampSize + 5, x + LampSize - 5, 30 + i * 40 + LampSize - 5);
+      MoveTo(x + direction * LampSize, 30 + i * 40);
+      LineTo(x + direction * 2 * LampSize, 30 + i * 40);
+      Brush.Color := FClr;
+   end;
+end;
+
+procedure TCont.ContainerDraw(i, j, pinCount: Integer; FClr: Cardinal; Pins, Inverse: Boolean; Text: String);
+begin
+  with (Canvas) do
+    begin
+      if (Pins) then
+        begin
+          if (pinCount = 2) then
+            begin
+              CEl[(i * 2) + 1 + j].ElIn[1] := TPin.Create(Self, Left + (i * 40) + 15, Top + (j * 40) + 15 + (ElHeight div 2), True, (i * 2) + 1 + j, Self);
+              CEl[(i * 2) + 1 + j].ElIn[2] := TPin.Create(Self, Left + (i * 40) + 15, Top + (j * 40) + 30 + (ElHeight div 2), True, (i * 2) + 1 + j, Self);
+
+              CEl[(i * 2) + 1 + j].ElOut := TPin.Create(Self, Left + (i * 40) + 25 + 2 * ElWidth, Top + (j * 40) + 15 + ElHeight, False, (i * 2) + 1 + j, Self);
+            end
+          else
+            begin
+              CEl[1 + j].ElIn[1] := TPin.Create(Self, Left + 25, Top + (j * 40) + 12 + (ElHeight div 2), True, 1 + j, Self);
+              CEl[1 + j].ElIn[2] := TPin.Create(Self, Left + 25, Top + (j * 40) + 19 + (ElHeight div 2), True, 1 + j, Self);
+              CEl[1 + j].ElIn[3] := TPin.Create(Self, Left + 25, Top + (j * 40) + 26 + (ElHeight div 2), True, 1 + j, Self);
+              CEl[1 + j].ElIn[4] := TPin.Create(Self, Left + 25, Top + (j * 40) + 33 + (ElHeight div 2), True, 1 + j, Self);
+
+							CEl[1 + j].ElOut := TPin.Create(Self, Left + 55 + 2 * ElWidth, Top + (j * 40) + 15 + ElHeight, False, 1 + j, Self);
+            end;
+
+        end;
+      if (pinCount = 2) then
+        begin
+          Rectangle((i * 40) + 20, (j * 40) + 15, (i * 40) + 20 + 2 * ElWidth, (j * 40) + 15 + 2 * ElHeight);
+          TextOut((i * 40) + 25, (j * 40) + 20, Text);
+          MoveTo((i * 40) + 20, (j * 40) + 15 + (ElHeight div 2));
+          LineTo((i * 40) + 15, (j * 40) + 15 + (ElHeight div 2));
+          MoveTo((i * 40) + 20, (j * 40) + 30 + (ElHeight div 2));
+          LineTo((i * 40) + 15, (j * 40) + 30 + (ElHeight div 2));
+          MoveTo((i * 40) + 20 + 2 * ElWidth, (j * 40) + 15 + ElHeight);
+          LineTo((i * 40) + 25 + 2 * ElWidth, (j * 40) + 15 + ElHeight);
+          if (Inverse) then
+            begin
+              Ellipse((i * 40) + 20 + 2 * ElWidth - 3, (j * 40) + 15 + ElHeight - 2, (i * 40) + 20 + 2 * ElWidth + 2, (j * 40) + 15 + ElHeight + 3);
+            end;
+        end
+      else
+        begin
+          Rectangle(30, (j * 40) + 15, 50 + 2 * ElWidth, (j * 40) + 15 + 2 * ElHeight);
+          TextOut(35, (j * 40) + 20, Text);
+          MoveTo(40 + 3 * ElWidth, (j * 40) + 15 + ElHeight);
+          LineTo(45 + 3 * ElWidth, (j * 40) + 15 + ElHeight);
+          MoveTo(30, (j * 40) + 12 + (ElHeight div 2));
+          LineTo(25, (j * 40) + 12 + (ElHeight div 2));
+          MoveTo(30, (j * 40) + 19 + (ElHeight div 2));
+          LineTo(25, (j * 40) + 19 + (ElHeight div 2));
+          MoveTo(30, (j * 40) + 26 + (ElHeight div 2));
+          LineTo(25, (j * 40) + 26 + (ElHeight div 2));
+          MoveTo(30, (j * 40) + 33 + (ElHeight div 2));
+          LineTo(25, (j * 40) + 33 + (ElHeight div 2));
+          if (Inverse) then
+            begin
+              Ellipse(50 + 2 * ElWidth - 3, (j * 40) + 15 + ElHeight - 2, 50 + 2 * ElWidth + 2, (j * 40) + 15 + ElHeight + 3);
+            end;
+        end;
+
+    end;
+end;
+
+// Drawing
+procedure TCont.Redraw(FClr: Cardinal; Pins: Boolean);
 var
 	i, j: Integer;
+  Text: String;
 begin
 	with Canvas do
 		begin
@@ -327,7 +433,7 @@ begin
 			Rectangle(5,5,95,95);
 			case (CType) of
 
-				// ?????????
+				// Batteries
 				1: begin
 						Rectangle(10, 10, 80, 35);
 						Rectangle(79, 15, 85, 30);
@@ -338,243 +444,59 @@ begin
 						Bus := 1;
 					end;
 
-				// ???????? ????????	
+				// Connective bus
 				2: begin
-						for i := 0 to 1 do
-							begin
-								if (Pins) then
-									begin
-										CEl[i + 1].ElOut := TPin.Create(Self, Left + 30 + 2 * LampSize, Top + 30 + i * 40, False, i + 1, Self);
-									end;
-								Ellipse(30 - LampSize, 30 + i * 40 - LampSize, 30 + LampSize, 30 + i * 40 + LampSize);
-								if ((CEl[i + 1].ElOut <> nil) and (CEl[ i + 1].ElOut.State) and OnLine) then
-									begin
-									  Brush.Color:=clLime;
-									end
-								else
-									begin
-										Brush.Color:=clGreen;
-									end;
-								Ellipse(30 - LampSize + 5, 30 + i * 40 - LampSize + 5, 30 + LampSize - 5, 30 + i * 40 + LampSize - 5);
-								MoveTo(30 + LampSize, 30 + i * 40);
-								LineTo(30 + 2 * LampSize, 30 + i * 40);
-								Brush.Color := FClr;
-							end;
-						Bus := 11;
-					end;
-
-				// ???????? ????????
-				3: begin
-						for i := 0 to 1 do
-							begin
-								if (Pins) then
-									begin
-										CEl[i + 1].ElIn[1] := TPin.Create(Self, Left + 70 - 2 * LampSize, Top + 30 + i * 40, True, i + 1, Self);
-									end;
-								Ellipse(70 + LampSize, 30 + i * 40 - LampSize, 70 - LampSize, 30 + i * 40 + LampSize);
-								if ((CEl[i + 1].ElIn[1] <> nil) and (CEl[i + 1].ElIn[1].State) and Self.OnLine) then
-									begin
-										Brush.Color:=clLime;
-									end
-								else
-									begin
-										Brush.Color:=clGreen;
-									end;
-								Ellipse(70 + LampSize - 5, 30 + i * 40 - LampSize + 5, 70 - LampSize + 5, 30 + i * 40 + LampSize - 5);
-								MoveTo(70 - LampSize, 30 + i * 40);
-								LineTo(70 - 2 * LampSize, 30 + i * 40);
-								Brush.Color:=FClr;
-							end;
-						Bus:=4;
-					end;
-
-				{>	
-				4:begin
-						for i:=0 to 1
-						do
-							for j:=0 to 1
-							do
-								begin
-								if Pins
-								then
-									begin
-										CEl[(i*2)+1+j].ElIn[1]:=TPin.Create(Self, Left+(i*40)+15, Top+(j*40)+15+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElIn[2]:=TPin.Create(Self, Left+(i*40)+15, Top+(j*40)+30+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElOut:=TPin.Create(Self, Left+(i*40)+25+2*ElWidth, Top+(j*40)+15+ElHeight, False, (i*2)+1+j, Self);
-										//CEl[(i*2)+1+j].ElCont:=@Self;
-									end;
-									Rectangle((i*40)+20, (j*40)+15, (i*40)+20+2*ElWidth, (j*40)+15+2*ElHeight);
-									TextOut((i*40)+25, (j*40)+20, '&');
-									MoveTo((i*40)+20, (j*40)+15+(ElHeight div 2));
-									LineTo((i*40)+15, (j*40)+15+(ElHeight div 2));
-									MoveTo((i*40)+20, (j*40)+30+(ElHeight div 2));
-									LineTo((i*40)+15, (j*40)+30+(ElHeight div 2));
-									MoveTo((i*40)+20+2*ElWidth, (j*40)+15+ElHeight);
-									LineTo((i*40)+25+2*ElWidth, (j*40)+15+ElHeight);
-									Ellipse((i*40)+20+2*ElWidth-3, (j*40)+15+ElHeight-2, (i*40)+20+2*ElWidth+2, (j*40)+15+ElHeight+3);
-								end;
-						Bus:=6;
-					end;
-				6:begin
-						for i:=0 to 1
-						do
-							for j:=0 to 1
-							do
-								begin
-								if Pins
-								then
-									begin
-										CEl[(i*2)+1+j].ElIn[1]:=TPin.Create(Self, Left+(i*40)+15, Top+(j*40)+15+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElIn[2]:=TPin.Create(Self, Left+(i*40)+15, Top+(j*40)+30+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElOut:=TPin.Create(Self, Left+(i*40)+25+2*ElWidth, Top+(j*40)+15+ElHeight, False, (i*2)+1+j, Self);
-										//CEl[(i*2)+1+j].ElCont:=@Self;
-									end;
-									Rectangle((i*40)+20, (j*40)+15, (i*40)+20+2*ElWidth, (j*40)+15+2*ElHeight);
-									TextOut((i*40)+25, (j*40)+20, '=1');
-									MoveTo((i*40)+20, (j*40)+15+(ElHeight div 2));
-									LineTo((i*40)+15, (j*40)+15+(ElHeight div 2));
-									MoveTo((i*40)+20, (j*40)+30+(ElHeight div 2));
-									LineTo((i*40)+15, (j*40)+30+(ElHeight div 2));
-									MoveTo((i*40)+20+2*ElWidth, (j*40)+15+ElHeight);
-									LineTo((i*40)+25+2*ElWidth, (j*40)+15+ElHeight);
-									Ellipse((i*40)+20+2*ElWidth-3, (j*40)+15+ElHeight-2, (i*40)+20+2*ElWidth+2, (j*40)+15+ElHeight+3);
-								end;
-						Bus:=6;
-					end;
-				{>
-				5:begin
-						for j:=0 to 1
-						do
-							//for j:=0 to 1
-							//do
-								begin
-								i:=0;
-								if Pins
-								then
-									begin
-										CEl[(i*2)+1+j].ElIn[1]:=TPin.Create(Self, Left+(i*40)+15+20, Top+(j*40)+12+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElIn[2]:=TPin.Create(Self, Left+(i*40)+15+20, Top+(j*40)+19+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElIn[3]:=TPin.Create(Self, Left+(i*40)+15+20, Top+(j*40)+26+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElIn[4]:=TPin.Create(Self, Left+(i*40)+15+20, Top+(j*40)+33+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElOut:=TPin.Create(Self, Left+(i*40)+25+2*ElWidth+20, Top+(j*40)+15+ElHeight, False, (i*2)+1+j, Self);
-										//CEl[(i*2)+1+j].ElCont:=@Self;
-									end;
-									Rectangle((i*40)+40, (j*40)+15, (i*40)+40+2*ElWidth, (j*40)+15+2*ElHeight);
-									TextOut((i*40)+25+20, (j*40)+20, '&');
-									MoveTo((i*40)+20+20, (j*40)+12+(ElHeight div 2));
-									LineTo((i*40)+15+20, (j*40)+12+(ElHeight div 2));
-									MoveTo((i*40)+20+20, (j*40)+19+(ElHeight div 2));
-									LineTo((i*40)+15+20, (j*40)+19+(ElHeight div 2));
-									MoveTo((i*40)+20+20, (j*40)+26+(ElHeight div 2));
-									LineTo((i*40)+15+20, (j*40)+26+(ElHeight div 2));
-									MoveTo((i*40)+20+20, (j*40)+33+(ElHeight div 2));
-									LineTo((i*40)+15+20, (j*40)+33+(ElHeight div 2));
-									MoveTo((i*40)+20+2*ElWidth+20, (j*40)+15+ElHeight);
-									LineTo((i*40)+25+2*ElWidth+20, (j*40)+15+ElHeight);
-									Ellipse((i*40)+20+2*ElWidth-3+20, (j*40)+15+ElHeight-2, (i*40)+20+2*ElWidth+2+20, (j*40)+15+ElHeight+3);
-								end;
-						Bus:=6;
-					end;
-				{<
-				5:begin
-						for i:=0 to 1
-						do
-							for j:=0 to 1
-							do
-								begin
-								if Pins
-								then
-									begin
-										CEl[(i*2)+1+j].ElIn[1]:=TPin.Create(Self, Left+(i*40)+15, Top+(j*40)+15+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElIn[2]:=TPin.Create(Self, Left+(i*40)+15, Top+(j*40)+30+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElOut:=TPin.Create(Self, Left+(i*40)+25+2*ElWidth, Top+(j*40)+15+ElHeight, False, (i*2)+1+j, Self);
-										//CEl[(i*2)+1+j].ElCont:=@Self;
-									end;
-									Rectangle((i*40)+20, (j*40)+15, (i*40)+20+2*ElWidth, (j*40)+15+2*ElHeight);
-									TextOut((i*40)+25, (j*40)+20, '1');
-									MoveTo((i*40)+20, (j*40)+15+(ElHeight div 2));
-									LineTo((i*40)+15, (j*40)+15+(ElHeight div 2));
-									MoveTo((i*40)+20, (j*40)+30+(ElHeight div 2));
-									LineTo((i*40)+15, (j*40)+30+(ElHeight div 2));
-									MoveTo((i*40)+20+2*ElWidth, (j*40)+15+ElHeight);
-									LineTo((i*40)+25+2*ElWidth, (j*40)+15+ElHeight);
-									Ellipse((i*40)+20+2*ElWidth-3, (j*40)+15+ElHeight-2, (i*40)+20+2*ElWidth+2, (j*40)+15+ElHeight+3);
-								end;
-						Bus:=6;
-					end;
-				7:begin
-						for i:=0 to 1
-						do
-							for j:=0 to 1
-							do
-								begin
-								if Pins
-								then
-									begin
-										CEl[(i*2)+1+j].ElIn[1]:=TPin.Create(Self, Left+(i*40)+15, Top+(j*40)+15+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElIn[2]:=TPin.Create(Self, Left+(i*40)+15, Top+(j*40)+30+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElOut:=TPin.Create(Self, Left+(i*40)+25+2*ElWidth, Top+(j*40)+15+ElHeight, False, (i*2)+1+j, Self);
-										//CEl[(i*2)+1+j].ElCont:=@Self;
-									end;
-									Rectangle((i*40)+20, (j*40)+15, (i*40)+20+2*ElWidth, (j*40)+15+2*ElHeight);
-									TextOut((i*40)+25, (j*40)+20, '=1');
-									MoveTo((i*40)+20, (j*40)+15+(ElHeight div 2));
-									LineTo((i*40)+15, (j*40)+15+(ElHeight div 2));
-									MoveTo((i*40)+20, (j*40)+30+(ElHeight div 2));
-									LineTo((i*40)+15, (j*40)+30+(ElHeight div 2));
-									MoveTo((i*40)+20+2*ElWidth, (j*40)+15+ElHeight);
-									LineTo((i*40)+25+2*ElWidth, (j*40)+15+ElHeight);
-									//Ellipse((i*40)+20+2*ElWidth-3, (j*40)+15+ElHeight-2, (i*40)+20+2*ElWidth+2, (j*40)+15+ElHeight+3);
-								end;
-						Bus:=6;
-					end;
-				{>
-				7:begin
-						for j:=0 to 1
-						do
-							//for j:=0 to 1
-							//do
-								begin
-								i:=0;
-								if Pins
-								then
-									begin
-										CEl[(i*2)+1+j].ElIn[1]:=TPin.Create(Self, Left+(i*40)+15+20, Top+(j*40)+12+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElIn[2]:=TPin.Create(Self, Left+(i*40)+15+20, Top+(j*40)+19+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElIn[3]:=TPin.Create(Self, Left+(i*40)+15+20, Top+(j*40)+26+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElIn[4]:=TPin.Create(Self, Left+(i*40)+15+20, Top+(j*40)+33+(ElHeight div 2), True, (i*2)+1+j, Self);
-										CEl[(i*2)+1+j].ElOut:=TPin.Create(Self, Left+(i*40)+25+2*ElWidth+20, Top+(j*40)+15+ElHeight, False, (i*2)+1+j, Self);
-										//CEl[(i*2)+1+j].ElCont:=@Self;
-									end;
-									Rectangle((i*40)+40, (j*40)+15, (i*40)+40+2*ElWidth, (j*40)+15+2*ElHeight);
-									TextOut((i*40)+25+20, (j*40)+20, '1');
-									MoveTo((i*40)+20+20, (j*40)+12+(ElHeight div 2));
-									LineTo((i*40)+15+20, (j*40)+12+(ElHeight div 2));
-									MoveTo((i*40)+20+20, (j*40)+19+(ElHeight div 2));
-									LineTo((i*40)+15+20, (j*40)+19+(ElHeight div 2));
-									MoveTo((i*40)+20+20, (j*40)+26+(ElHeight div 2));
-									LineTo((i*40)+15+20, (j*40)+26+(ElHeight div 2));
-									MoveTo((i*40)+20+20, (j*40)+33+(ElHeight div 2));
-									LineTo((i*40)+15+20, (j*40)+33+(ElHeight div 2));
-									MoveTo((i*40)+20+2*ElWidth+20, (j*40)+15+ElHeight);
-									LineTo((i*40)+25+2*ElWidth+20, (j*40)+15+ElHeight);
-									Ellipse((i*40)+20+2*ElWidth-3+20, (j*40)+15+ElHeight-2, (i*40)+20+2*ElWidth+2+20, (j*40)+15+ElHeight+3);
-								end;
-						Bus:=6;
-					end;
-				{<}
-
-				// ?????????????? ????
-				8: begin
 						Rectangle(5, 5, 31, 31);
 						Rectangle(69, 5, 95, 31);
 						Rectangle(5, 69, 31, 95);
 						Rectangle(69, 69, 95, 95);
 						Bus := 15;
 					end;
+
+				// Signal generators lamp
+				3: begin
+            LampDraw(0, FClr, Pins, True);
+            LampDraw(1, FClr, Pins, True);
+						Bus := 11;
+					end;
+
+				// Signal detectors lamp
+				4: begin
+            LampDraw(0, FClr, Pins, False);
+            LampDraw(1, FClr, Pins, False);
+						Bus:=4;
+					end;
+
+        // not And
+				5: begin
+            Text := '&';
+            ContainerDraw(0, 0, 2, FClr, Pins, True, Text);
+            ContainerDraw(0, 1, 2, FClr, Pins, True, Text);
+            ContainerDraw(1, 0, 2, FClr, Pins, True, Text);
+            ContainerDraw(1, 1, 2, FClr, Pins, True, Text);
+						Bus:=6;
+					end;
+
+        // not Or
+				6: begin
+            Text := '1';
+            ContainerDraw(0, 0, 2, FClr, Pins, True, Text);
+            ContainerDraw(0, 1, 2, FClr, Pins, True, Text);
+            ContainerDraw(1, 0, 2, FClr, Pins, True, Text);
+            ContainerDraw(1, 1, 2, FClr, Pins, True, Text);
+						Bus:=6;
+					end;
+
+        // Xor
+				7: begin
+            Text := '2k+1';
+            ContainerDraw(0, 0, 4, FClr, Pins, False, Text);
+            ContainerDraw(0, 1, 4, FClr, Pins, False, Text);
+						Bus:=6;
+					end;
 			end;
 
-			// ????????? ????????? ???????
+			// Drawing power contacts
 			if ((Bus and 8) > 0) then
 				begin
 					Rectangle(30, 0, 70, 6);
